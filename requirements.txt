@@ -1,0 +1,5 @@
+librosa==0.10.0
+numpy==1.23.5
+torch==1.13.1
+torchaudio==0.13.1
+tqdm==4.64.1
