@@ -1,7 +1,32 @@
 # (Unofficial) PyTorch Implemention of "SpecGrad: Diffusion Probabilistic Model based Neural Vocoder with Adaptive Noise Spectral Shaping"
 
+> Thanks to Microsoft's implementation of
+> [PriorGrad](https://github.com/microsoft/NeuralSpeech/tree/master/PriorGrad-vocoder),
+> which I use as a base of this implementation.
+
+## Setup
+`TODO`
+
+## Usage
+`TODO`
+
+## Configuration
+`TODO`
+
 ### TODO:
-- [ ] Make ToDo
+- [ ] Refactor model code copied from PriorGrad
+- [ ] Dataset preprocessing to support extra precomputed components of SpecGrad (TF-filter per input)
+- [ ] Configuration system
+- [ ] Basic training script
+- [ ] Basic inference script (w/ HF schedulers)
+- [ ] Data parallel training (w/ HF accelerate)
+- [ ] Optimisations
+
+### Potential Future Features
+- Progressive distillation for fast sampling?
+- Conditioning methods? (speaker embeddings)
+- Larger dataset test?
+- Explore other filter designs?
 
 ### Reference
 **SpecGrad: Diffusion probabilistic model based neural vocoder with adaptive noise spectral shaping**
