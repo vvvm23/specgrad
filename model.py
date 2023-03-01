@@ -58,16 +58,17 @@ class DiffusionEmbedding(nn.Module):
 class SpectrogramUpsampler(nn.Module):
     def __init__(self, stride: int = 16, leaky_relu_slope: float = 0.4, num_layers: int = 2):
         super().__init__()
-        self.conv1 = nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2])
-        self.conv2 = nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2])
+        strides = (10, 30)  # TODO: need to param this properly
 
         self.layers = nn.Sequential(
             *[
                 nn.Sequential(
+                    # nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2]),
                     nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2]),
                     nn.LeakyReLU(leaky_relu_slope),
                 )
-                for _ in range(num_layers)
+                # for _ in range(num_layers)
+                for stride in strides
             ]
         )
 
@@ -91,7 +92,6 @@ class ResidualBlock(nn.Module):
         x: torch.FloatTensor,
         conditioner: torch.FloatTensor,
         diffusion_step: Union[torch.LongTensor, torch.FloatTensor],
-        conditioner_global: Optional[torch.FloatTensor] = None,
     ):
         diffusion_step = self.diffusion_projection(diffusion_step).unsqueeze(-1)
         conditioner = self.conditioner_projection(conditioner)
@@ -177,15 +177,20 @@ if __name__ == "__main__":
     import librosa
 
     wav, _ = librosa.load("test.wav", sr=24_000, mono=True)
-    wav = wav[: 36000 - 1]
+    offset, length = 10_000, 36_000
+    wav = wav[offset : offset + length]
+
+    # TODO: why does mel add +1?
     mel = librosa.feature.melspectrogram(
         y=wav, sr=24_000, hop_length=300, win_length=1200, fmin=20, fmax=12_000, power=2
-    )
+    )[:, :-1]
 
     wav = torch.from_numpy(wav).unsqueeze(0)
     mel = torch.from_numpy(mel).unsqueeze(0)
     t = torch.FloatTensor([0.5])
 
-    model = SpecGrad(n_mels=128)
+    model = SpecGrad(n_mels=128, dilation_cycle_length=10)
     y = model(wav, mel, t)
+    print(wav)
+    print(y)
     print(y.min(), y.max(), y.mean(), y.shape)
