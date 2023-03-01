@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from math import sqrt
-from typing import Optional, Union
+from typing import Union, Tuple
 
 
 def Conv1d(*args, **kwargs):
@@ -56,18 +56,15 @@ class DiffusionEmbedding(nn.Module):
 
 
 class SpectrogramUpsampler(nn.Module):
-    def __init__(self, stride: int = 16, leaky_relu_slope: float = 0.4, num_layers: int = 2):
+    def __init__(self, strides: Tuple[int] = (10, 30), leaky_relu_slope: float = 0.4):
         super().__init__()
-        strides = (10, 30)  # TODO: need to param this properly
 
         self.layers = nn.Sequential(
             *[
                 nn.Sequential(
-                    # nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2]),
                     nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2]),
                     nn.LeakyReLU(leaky_relu_slope),
                 )
-                # for _ in range(num_layers)
                 for stride in strides
             ]
         )
@@ -119,8 +116,7 @@ class SpecGrad(nn.Module):
         diffusion_embedding_dim: int = 64,
         diffusion_projection_dim: int = 512,
         leaky_relu_slope: float = 0.4,
-        spec_upsample_stride: int = 16,
-        num_spec_upsample_layers: int = 2,
+        spec_upsample_strides: Tuple[int] = (10, 30),
     ):
         super().__init__()
         self.use_prior = use_prior
@@ -131,7 +127,7 @@ class SpecGrad(nn.Module):
             max_timesteps, embedding_dim=diffusion_embedding_dim, out_dim=diffusion_projection_dim
         )
         self.spectrogram_upsampler = SpectrogramUpsampler(
-            stride=spec_upsample_stride, leaky_relu_slope=leaky_relu_slope, num_layers=num_spec_upsample_layers
+            strides=spec_upsample_strides, leaky_relu_slope=leaky_relu_slope
         )
         self.residual_layers = nn.ModuleList(
             [
