@@ -1,41 +1,14 @@
-# Copyright 2022 (c) Microsoft Corporation. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-
-# Copyright 2020 LMNT, Inc. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
+# Adapted from PriorGrad-vocoder as part of the Microsoft NeuralSpeech project:
+# https://github.com/microsoft/NeuralSpeech/blob/master/PriorGrad-vocoder/model.py
+# Originally licensed under the Apache 2.0 license:
+# http://www.apache.org/licenses/LICENSE-2.0
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from math import sqrt
-
-Linear = nn.Linear
-ConvTranspose2d = nn.ConvTranspose2d
+from typing import Optional, Union
 
 
 def Conv1d(*args, **kwargs):
@@ -50,13 +23,13 @@ def silu(x):
 
 
 class DiffusionEmbedding(nn.Module):
-    def __init__(self, max_steps):
+    def __init__(self, max_steps: int, embedding_dim: int = 64, out_dim: int = 512):
         super().__init__()
-        self.register_buffer("embedding", self._build_embedding(max_steps), persistent=False)
-        self.projection1 = Linear(128, 512)
-        self.projection2 = Linear(512, 512)
+        self.register_buffer("embedding", self._build_embedding(max_steps, embedding_dim), persistent=False)
+        self.projection1 = nn.Linear(embedding_dim * 2, out_dim)
+        self.projection2 = nn.Linear(out_dim, out_dim)
 
-    def forward(self, diffusion_step):
+    def forward(self, diffusion_step: Union[torch.LongTensor, torch.FloatTensor]):
         if diffusion_step.dtype in [torch.int32, torch.int64]:
             x = self.embedding[diffusion_step]
         else:
@@ -67,125 +40,152 @@ class DiffusionEmbedding(nn.Module):
         x = silu(x)
         return x
 
-    def _lerp_embedding(self, t):
+    def _lerp_embedding(self, t: torch.FloatTensor):
         low_idx = torch.floor(t).long()
         high_idx = torch.ceil(t).long()
         low = self.embedding[low_idx]
         high = self.embedding[high_idx]
         return low + (high - low) * (t - low_idx)
 
-    def _build_embedding(self, max_steps):
-        steps = torch.arange(max_steps).unsqueeze(1)  # [T,1]
-        dims = torch.arange(64).unsqueeze(0)  # [1,64]
-        table = steps * 10.0 ** (dims * 4.0 / 63.0)  # [T,64]
-        table = torch.cat([torch.sin(table), torch.cos(table)], dim=1)
+    def _build_embedding(self, max_steps: int, dim: int = 64):
+        steps = torch.arange(max_steps).unsqueeze(1)
+        dims = torch.arange(dim).unsqueeze(0)
+        table = steps * 10.0 ** (dims * 4.0 / (dim - 1.0))  # [T,64]
+        table = torch.cat([torch.sin(table), torch.cos(table)], dim=-1)
         return table
 
 
 class SpectrogramUpsampler(nn.Module):
-    def __init__(self, n_mels):
+    def __init__(self, stride: int = 16, leaky_relu_slope: float = 0.4, num_layers: int = 2):
         super().__init__()
-        self.conv1 = ConvTranspose2d(1, 1, [3, 32], stride=[1, 16], padding=[1, 8])
-        self.conv2 = ConvTranspose2d(1, 1, [3, 32], stride=[1, 16], padding=[1, 8])
+        self.conv1 = nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2])
+        self.conv2 = nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2])
+
+        self.layers = nn.Sequential(
+            *[
+                nn.Sequential(
+                    nn.ConvTranspose2d(1, 1, [3, 2 * stride], stride=[1, stride], padding=[1, stride // 2]),
+                    nn.LeakyReLU(leaky_relu_slope),
+                )
+                for _ in range(num_layers)
+            ]
+        )
 
     def forward(self, x):
-        x = torch.unsqueeze(x, 1)
-        x = self.conv1(x)
-        x = F.leaky_relu(x, 0.4)
-        x = self.conv2(x)
-        x = F.leaky_relu(x, 0.4)
-        x = torch.squeeze(x, 1)
+        x = x.unsqueeze(dim=1)
+        x = self.layers(x)
+        x = x.squeeze(dim=1)
         return x
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self, n_mels, residual_channels, dilation, n_cond_global=None):
+    def __init__(self, n_mels: int, residual_channels: int, dilation: int, diffusion_projection_dim: int = 512):
         super().__init__()
         self.dilated_conv = Conv1d(residual_channels, 2 * residual_channels, 3, padding=dilation, dilation=dilation)
-        self.diffusion_projection = Linear(512, residual_channels)
+        self.diffusion_projection = nn.Linear(diffusion_projection_dim, residual_channels)
         self.conditioner_projection = Conv1d(n_mels, 2 * residual_channels, 1)
-        if n_cond_global is not None:
-            self.conditioner_projection_global = Conv1d(n_cond_global, 2 * residual_channels, 1)
         self.output_projection = Conv1d(residual_channels, 2 * residual_channels, 1)
 
-    def forward(self, x, conditioner, diffusion_step, conditioner_global=None):
+    def forward(
+        self,
+        x: torch.FloatTensor,
+        conditioner: torch.FloatTensor,
+        diffusion_step: Union[torch.LongTensor, torch.FloatTensor],
+        conditioner_global: Optional[torch.FloatTensor] = None,
+    ):
         diffusion_step = self.diffusion_projection(diffusion_step).unsqueeze(-1)
         conditioner = self.conditioner_projection(conditioner)
 
         y = x + diffusion_step
         y = self.dilated_conv(y) + conditioner
 
-        if conditioner_global is not None:
-            y = y + self.conditioner_projection_global(conditioner_global)
-
-        gate, filter = torch.chunk(y, 2, dim=1)
+        gate, filter = y.chunk(2, dim=1)
         y = torch.sigmoid(gate) * torch.tanh(filter)
 
         y = self.output_projection(y)
-        residual, skip = torch.chunk(y, 2, dim=1)
+        residual, skip = y.chunk(2, dim=1)
         return (x + residual) / sqrt(2.0), skip
 
 
-class PriorGrad(nn.Module):
-    def __init__(self, params):
+class SpecGrad(nn.Module):
+    def __init__(
+        self,
+        residual_channels: int = 64,
+        num_residual_layers: int = 30,
+        n_mels: int = 80,
+        use_prior: bool = True,
+        dilation_cycle_length: int = 10,
+        max_timesteps: int = 50,
+        diffusion_embedding_dim: int = 64,
+        diffusion_projection_dim: int = 512,
+        leaky_relu_slope: float = 0.4,
+        spec_upsample_stride: int = 16,
+        num_spec_upsample_layers: int = 2,
+    ):
         super().__init__()
-        self.params = params
-        self.use_prior = params.use_prior
-        self.condition_prior = params.condition_prior
-        self.condition_prior_global = params.condition_prior_global
-        assert not (
-            self.condition_prior and self.condition_prior_global
-        ), "use only one option for conditioning on the prior"
-        print("use_prior: {}".format(self.use_prior))
-        self.n_mels = params.n_mels
-        self.n_cond = None
-        print("condition_prior: {}".format(self.condition_prior))
-        if self.condition_prior:
-            self.n_mels = self.n_mels + 1
-            print("self.n_mels increased to {}".format(self.n_mels))
-        print("condition_prior_global: {}".format(self.condition_prior_global))
-        if self.condition_prior_global:
-            self.n_cond = 1
+        self.use_prior = use_prior
+        self.n_mels = n_mels
 
-        self.input_projection = Conv1d(1, params.residual_channels, 1)
-        self.diffusion_embedding = DiffusionEmbedding(len(params.noise_schedule))
-        self.spectrogram_upsampler = SpectrogramUpsampler(self.n_mels)
-        if self.condition_prior_global:
-            self.global_condition_upsampler = SpectrogramUpsampler(self.n_cond)
+        self.input_projection = Conv1d(1, residual_channels, 1)
+        self.diffusion_embedding = DiffusionEmbedding(
+            max_timesteps, embedding_dim=diffusion_embedding_dim, out_dim=diffusion_projection_dim
+        )
+        self.spectrogram_upsampler = SpectrogramUpsampler(
+            stride=spec_upsample_stride, leaky_relu_slope=leaky_relu_slope, num_layers=num_spec_upsample_layers
+        )
         self.residual_layers = nn.ModuleList(
             [
                 ResidualBlock(
-                    self.n_mels,
-                    params.residual_channels,
-                    2 ** (i % params.dilation_cycle_length),
-                    n_cond_global=self.n_cond,
+                    n_mels=n_mels,
+                    residual_channels=residual_channels,
+                    dilation=2 ** (i % dilation_cycle_length),
+                    diffusion_projection_dim=diffusion_projection_dim,
                 )
-                for i in range(params.residual_layers)
+                for i in range(num_residual_layers)
             ]
         )
-        self.skip_projection = Conv1d(params.residual_channels, params.residual_channels, 1)
-        self.output_projection = Conv1d(params.residual_channels, 1, 1)
+        self.skip_projection = Conv1d(residual_channels, residual_channels, 1)
+        self.output_projection = Conv1d(residual_channels, 1, 1)
         nn.init.zeros_(self.output_projection.weight)
 
-        print("num param: {}".format(sum(p.numel() for p in self.parameters() if p.requires_grad)))
-
-    def forward(self, audio, spectrogram, diffusion_step, global_cond=None):
-        x = audio.unsqueeze(1)
+    def forward(
+        self,
+        audio: torch.FloatTensor,
+        spectrogram: torch.FloatTensor,
+        diffusion_step: Union[torch.LongTensor, torch.FloatTensor],
+    ):
+        x = audio.unsqueeze(dim=1)
         x = self.input_projection(x)
         x = F.relu(x)
 
         diffusion_step = self.diffusion_embedding(diffusion_step)
         spectrogram = self.spectrogram_upsampler(spectrogram)
-        if global_cond is not None:
-            global_cond = self.global_condition_upsampler(global_cond)
 
         skip = []
         for layer in self.residual_layers:
-            x, skip_connection = layer(x, spectrogram, diffusion_step, global_cond)
+            x, skip_connection = layer(x, spectrogram, diffusion_step)
             skip.append(skip_connection)
 
-        x = torch.sum(torch.stack(skip), dim=0) / sqrt(len(self.residual_layers))
+        x = torch.stack(skip).sum(dim=0) / sqrt(len(self.residual_layers))
         x = self.skip_projection(x)
         x = F.relu(x)
         x = self.output_projection(x)
         return x
+
+
+if __name__ == "__main__":
+    import librosa
+
+    wav, _ = librosa.load("test.wav", sr=24_000, mono=True)
+    wav = wav[: 36000 - 1]
+    mel = librosa.feature.melspectrogram(
+        y=wav, sr=24_000, hop_length=300, win_length=1200, fmin=20, fmax=12_000, power=2
+    )
+
+    wav = torch.from_numpy(wav).unsqueeze(0)
+    mel = torch.from_numpy(mel).unsqueeze(0)
+    t = torch.FloatTensor([0.5])
+
+    model = SpecGrad(n_mels=128)
+    y = model(wav, mel, t)
+    print(y.min(), y.max(), y.mean(), y.shape)
