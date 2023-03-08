@@ -3,7 +3,7 @@ from typing import Union
 
 from torch.utils.data import DataLoader, Dataset
 
-from config.config import Config  # TODO: dataconfig specifically
+from config.config import DataConfig
 
 from .preprocess import (
     calculate_mel,
@@ -15,7 +15,7 @@ from .preprocess import (
 
 # TODO: parameterise other functions (n_mels, n_ffts, etc.)
 class SpecGradDataset(Dataset):
-    def __init__(self, root_dir: Union[str, Path], config: Config):
+    def __init__(self, root_dir: Union[str, Path], config: DataConfig):
         super().__init__()
         root_dir = root_dir if isinstance(root_dir, Path) else Path(root_dir)
         meta_path = root_dir / "metadata.txt"
@@ -23,15 +23,27 @@ class SpecGradDataset(Dataset):
         self.root_dir = root_dir
 
         self.config = config
-        self.pinv_mel_basis = get_pinv_mel_basis(config.sr)
+        self.pinv_mel_basis = get_pinv_mel_basis(
+            sr=config.sampling_rate, n_fft=config.n_fft, n_mels=config.n_mels, fmin=config.fmin, fmax=config.fmax
+        )
 
     def __len__(self):
         return len(self.entries)
 
     def __getitem__(self, idx: int):
         path = self.root_dir / self.entries[idx]
-        waveform = load_waveform(path, sr=self.config.sr, sample_length=self.config.sample_length, random_clip=True)
-        mel_spectrogram = calculate_mel(waveform, sr=self.config.sr)
+        waveform = load_waveform(
+            path, sr=self.config.sampling_rate, sample_length=self.config.sample_length, random_clip=True
+        )
+        mel_spectrogram = calculate_mel(
+            waveform,
+            sr=self.config.sampling_rate,
+            window_length=self.config.window_length,
+            hop_length=self.config.hop_length,
+            n_mels=self.config.n_mels,
+            fmin=self.config.fmin,
+            fmax=self.config.fmax,
+        )
         M = calculate_tf_filter(
             mel_spectrogram,
             self.pinv_mel_basis,
@@ -42,7 +54,7 @@ class SpecGradDataset(Dataset):
         return waveform, mel_spectrogram, M
 
 
-def get_dataset(config: Config, root_dir: Union[str, Path], shuffle: bool = True):
+def get_dataset(config: DataConfig, root_dir: Union[str, Path], shuffle: bool = True):
     dataset = SpecGradDataset(root_dir, config)
     dataloader = DataLoader(
         dataset, batch_size=config.batch_size, shuffle=shuffle, num_workers=config.num_workers, pin_memory=True
