@@ -1,4 +1,5 @@
 import dataclasses
+from typing import Tuple
 
 from simple_parsing import ArgumentParser
 
@@ -8,9 +9,18 @@ class TrainingConfig:
     pass
 
 
+# TODO: some params can be derived from data directly
 @dataclasses.dataclass
 class ModelConfig:
-    pass
+    in_channels: int = 1
+    residual_channels: int = 64
+    num_residual_layers: int = 30
+    dilation_cycle_length: int = 10
+    max_timesteps: int = 50  # TODO: can probably be moved to training
+    diffusion_embedding_dim: int = 64
+    diffusion_projection_dim: int = 512
+    leaky_relu_slope: float = 0.4
+    spec_upsample_strides: Tuple[int] = (10, 30)  # TODO: assert product equal to hop_length
 
 
 @dataclasses.dataclass

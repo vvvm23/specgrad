@@ -110,7 +110,6 @@ class SpecGrad(nn.Module):
         residual_channels: int = 64,
         num_residual_layers: int = 30,
         n_mels: int = 80,
-        use_prior: bool = True,
         dilation_cycle_length: int = 10,
         max_timesteps: int = 50,
         diffusion_embedding_dim: int = 64,
@@ -119,7 +118,6 @@ class SpecGrad(nn.Module):
         spec_upsample_strides: Tuple[int] = (10, 30),
     ):
         super().__init__()
-        self.use_prior = use_prior
         self.n_mels = n_mels
 
         self.input_projection = Conv1d(1, residual_channels, 1)
