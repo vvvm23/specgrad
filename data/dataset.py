@@ -1,45 +1,50 @@
-import torch
-from torch.utils.data import Dataset, DataLoader
-
-import numpy as np
-
-from config.config import Config
-
 from pathlib import Path
-
 from typing import Union
 
-# TODO: compressed version
-# TODO: experiment with on-the-fly mel and augmentation for speed
+from torch.utils.data import DataLoader, Dataset
+
+from config.config import Config  # TODO: dataconfig specifically
+
+from .preprocess import (
+    calculate_mel,
+    calculate_tf_filter,
+    get_pinv_mel_basis,
+    load_waveform,
+)
+
+
+# TODO: parameterise other functions (n_mels, n_ffts, etc.)
 class SpecGradDataset(Dataset):
-    def __init__(self, root_dir: Union[str, Path]):
+    def __init__(self, root_dir: Union[str, Path], config: Config):
         super().__init__()
-        meta_path = root_dir / "metadata.csv"
+        root_dir = root_dir if isinstance(root_dir, Path) else Path(root_dir)
+        meta_path = root_dir / "metadata.txt"
         self.entries = [l.rstrip() for l in open(meta_path, mode="r").readlines()]
         self.root_dir = root_dir
+
+        self.config = config
+        self.pinv_mel_basis = get_pinv_mel_basis(config.sr)
 
     def __len__(self):
         return len(self.entries)
 
-    """
-        TODO: here, we have to prechunk our waveform and mels, so not to compute filter during training.
-        However, we have less augmentation options, index options, and use more disk space to precompute.
-        Which approach is better? Computing the filter is quite expensive currently.
-        Maybe look at prior grad for inspiration, and just bite the bullet computing filter
-        If we use pinv it is possible to do on the fly, but if we use nnls with librosa it is slow :/
-    """
-
     def __getitem__(self, idx: int):
-        path = self.entries[idx]
-        archive = np.load(path)
-
-        waveform, mel_spectrogram, M = archive["waveform"], archive["mel_spectrogram"], archive["filter"]
-        waveform, mel_spectrogram, M = map(torch.from_numpy, (waveform, mel_spectrogram, M))
-
-        archive.close()
+        path = self.root_dir / self.entries[idx]
+        waveform = load_waveform(path, sr=self.config.sr, sample_length=self.config.sample_length, random_clip=True)
+        mel_spectrogram = calculate_mel(waveform, sr=self.config.sr)
+        M = calculate_tf_filter(
+            mel_spectrogram,
+            self.pinv_mel_basis,
+            lifter_order=self.config.lifter_order,
+            envelope_min=self.config.envelope_min,
+        )
 
         return waveform, mel_spectrogram, M
 
 
-def get_dataloader(config: Config):
-    pass
+def get_dataset(config: Config, root_dir: Union[str, Path], shuffle: bool = True):
+    dataset = SpecGradDataset(root_dir, config)
+    dataloader = DataLoader(
+        dataset, batch_size=config.batch_size, shuffle=shuffle, num_workers=config.num_workers, pin_memory=True
+    )
+    return dataset, dataloader

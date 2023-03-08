@@ -3,12 +3,12 @@
 # Originally licensed under the Apache 2.0 license:
 # http://www.apache.org/licenses/LICENSE-2.0
 
+from math import sqrt
+from typing import Tuple, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-from math import sqrt
-from typing import Union, Tuple
 
 
 def Conv1d(*args, **kwargs):

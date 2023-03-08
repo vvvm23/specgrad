@@ -1,14 +1,14 @@
-from typing import Union, Optional
+import random
 from pathlib import Path
-
-import torch
-import numpy as np
-from numpy.typing import NDArray
-from utils import str_to_path
+from typing import Optional, Union
 
 import librosa
+import numpy as np
 import soundfile
-import random
+import torch
+from numpy.typing import NDArray
+
+from utils import str_to_path
 
 
 def lifter(M, r):

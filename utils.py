@@ -1,5 +1,5 @@
-from typing import Union
 from pathlib import Path
+from typing import Union
 
 
 def str_to_path(path: Union[str, Path]):
