@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Union
+from typing import Literal, Union
 
 from torch.utils.data import DataLoader, Dataset
 
@@ -54,9 +54,9 @@ class SpecGradDataset(Dataset):
         return waveform, mel_spectrogram, M
 
 
-def get_dataset(config: DataConfig, root_dir: Union[str, Path], shuffle: bool = True):
-    dataset = SpecGradDataset(root_dir, config)
+def get_dataset(config: DataConfig, split: Literal["train", "test"] = "train"):
+    dataset = SpecGradDataset(config.root_dir / split, config)
     dataloader = DataLoader(
-        dataset, batch_size=config.batch_size, shuffle=shuffle, num_workers=config.num_workers, pin_memory=True
+        dataset, batch_size=config.batch_size, shuffle=split == "train", num_workers=config.num_workers, pin_memory=True
     )
     return dataset, dataloader
