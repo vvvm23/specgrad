@@ -116,6 +116,7 @@ class SpecGrad(nn.Module):
         diffusion_projection_dim: int = 512,
         leaky_relu_slope: float = 0.4,
         spec_upsample_strides: Tuple[int] = (10, 30),
+        **kwargs,
     ):
         super().__init__()
         self.n_mels = n_mels

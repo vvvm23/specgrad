@@ -14,13 +14,11 @@ from .preprocess import (
 )
 
 
-# TODO: parameterise other functions (n_mels, n_ffts, etc.)
 class SpecGradDataset(Dataset):
-    def __init__(self, root_dir: Union[str, Path], config: DataConfig):
+    def __init__(self, root_dir: Union[str, Path], meta_path: str, config: DataConfig):
         super().__init__()
         root_dir = root_dir if isinstance(root_dir, Path) else Path(root_dir)
-        meta_path = root_dir / "metadata.txt"
-        self.entries = [l.rstrip() for l in open(meta_path, mode="r").readlines()]
+        self.entries = [l.rstrip() for l in open(root_dir / meta_path, mode="r").readlines()]
         self.root_dir = root_dir
 
         self.config = config
@@ -55,11 +53,11 @@ class SpecGradDataset(Dataset):
         return waveform, mel_spectrogram, M
 
 
-# TODO: refactor just to use HF dataset with preprocess set
-# .. they also use a proprietry dataset so we can't exactly reproduce.
+# they use a proprietry dataset so we can't exactly reproduce.
 # use LJSpeech to compare with PriorGrad, but need different sampling rate and other preprocess params
-def get_dataset(config: DataConfig, split: Literal["train", "test"] = "train"):
-    dataset = SpecGradDataset(str_to_path(config.root_dir) / split, config)
+# TODO: refactor to use LJSpeech
+def get_dataset(config: DataConfig, split: Literal["train", "valid", "test"] = "train"):
+    dataset = SpecGradDataset(str_to_path(config.root_dir), f"{split}.txt", config)
     dataloader = DataLoader(
         dataset, batch_size=config.batch_size, shuffle=split == "train", num_workers=config.num_workers, pin_memory=True
     )

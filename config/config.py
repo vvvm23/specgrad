@@ -26,7 +26,7 @@ class ModelConfig:
 
 @dataclasses.dataclass
 class DataConfig:
-    root_dir: str = "dataset"
+    root_dir: str = "dataset/ljspeech"
     sampling_rate: int = 24_000
     n_fft: int = 2048
     n_mels: int = 128
@@ -37,6 +37,8 @@ class DataConfig:
     hop_length: int = 300
     lifter_order: int = 24
     envelope_min: int = 0.1
+    batch_size: int = 16  # TODO: move to training
+    num_workers: int = 4
 
 
 @dataclasses.dataclass

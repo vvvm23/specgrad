@@ -23,13 +23,13 @@ def main(args, config: Config):
 
     logger.info("loading dataset")
     train_dataset, train_dataloader = get_dataset(config.data, split="train")
-    test_dataset, test_dataloader = get_dataset(config.data, split="test")
+    valid_dataset, valid_dataloader = get_dataset(config.data, split="valid")
     logger.info("train dataset length:", len(train_dataset))
-    logger.info("test dataset length:", len(test_dataset))
+    logger.info("valid dataset length:", len(valid_dataset))
 
     # TODO: does model.compile work with accelerate
     logger.info("initialising model")
-    model = SpecGrad(**config.model)
+    model = SpecGrad(**vars(config.model))
     optim = torch.optim.AdamW(model.parameters(), lr=config.training.learning_rate)
     logger.info("number of parameters:", sum(torch.numel(p) for p in model.parameters()))
 
@@ -95,11 +95,11 @@ def main(args, config: Config):
         total_loss = 0.0
         model.eval()
         with torch.no_grad():
-            pb = tqdm(enumerate(test_dataloader))
+            pb = tqdm(enumerate(valid_dataloader))
             for i, batch in pb:
                 loss = loss_fn(model, batch)
                 total_loss += loss.item()
-                pb.set_description(f"test loss: {total_loss / (i+1):.4f}")
+                pb.set_description(f"valid loss: {total_loss / (i+1):.4f}")
 
 
 if __name__ == "__main__":
