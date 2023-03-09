@@ -6,7 +6,8 @@ from simple_parsing import ArgumentParser
 
 @dataclasses.dataclass
 class TrainingConfig:
-    pass
+    epochs: int = 1
+    learning_rate: float = 4e-4
 
 
 # TODO: some params can be derived from data directly
@@ -25,6 +26,7 @@ class ModelConfig:
 
 @dataclasses.dataclass
 class DataConfig:
+    root_dir: str = "dataset"
     sampling_rate: int = 24_000
     n_fft: int = 2048
     n_mels: int = 128
@@ -42,3 +44,4 @@ class Config:
     training: TrainingConfig = TrainingConfig()
     model: ModelConfig = ModelConfig()
     data: DataConfig = DataConfig()
+    wandb = None

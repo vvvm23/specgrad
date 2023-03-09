@@ -78,6 +78,7 @@ def calculate_tf_filter(
     return normalised_spec
 
 
+# TODO: can we torch jit compile
 def transform_noise(
     filter_coefficients: torch.FloatTensor,
     noise: torch.FloatTensor,

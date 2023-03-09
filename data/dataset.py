@@ -4,6 +4,7 @@ from typing import Literal, Union
 from torch.utils.data import DataLoader, Dataset
 
 from config.config import DataConfig
+from utils import str_to_path
 
 from .preprocess import (
     calculate_mel,
@@ -54,8 +55,11 @@ class SpecGradDataset(Dataset):
         return waveform, mel_spectrogram, M
 
 
+# TODO: refactor just to use HF dataset with preprocess set
+# .. they also use a proprietry dataset so we can't exactly reproduce.
+# use LJSpeech to compare with PriorGrad, but need different sampling rate and other preprocess params
 def get_dataset(config: DataConfig, split: Literal["train", "test"] = "train"):
-    dataset = SpecGradDataset(config.root_dir / split, config)
+    dataset = SpecGradDataset(str_to_path(config.root_dir) / split, config)
     dataloader = DataLoader(
         dataset, batch_size=config.batch_size, shuffle=split == "train", num_workers=config.num_workers, pin_memory=True
     )

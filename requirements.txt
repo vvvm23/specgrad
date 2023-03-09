@@ -1,4 +1,6 @@
 accelerate==0.17.0
+datasets==2.10.1
+diffusers==0.14.0
 librosa==0.10.0
 numpy==1.23.5
 simple-parsing==0.1.0
