@@ -19,22 +19,22 @@ def main(args, config: Config):
     gradient_accumulation_steps = config.training.batch_size // config.data.micro_batch_size
     accelerator = Accelerator(gradient_accumulation_steps=gradient_accumulation_steps)
 
-    logger.info("config:")
-    logger.info(config)
-    logger.info(args)
+    print("> config:")
+    print(config)
+    print(args)
 
-    logger.info("accelerator:", accelerator)
+    print("> accelerator:", accelerator)
 
-    logger.info("loading dataset")
+    print("> loading dataset")
     train_dataset, train_dataloader = get_dataset(config, split="train")
     valid_dataset, valid_dataloader = get_dataset(config, split="valid")
-    logger.info("train dataset length:", len(train_dataset))
-    logger.info("valid dataset length:", len(valid_dataset))
+    print("> train dataset length:", len(train_dataset))
+    print("> valid dataset length:", len(valid_dataset))
 
-    logger.info("initialising model")
+    print("> initialising model")
     model = SpecGrad(**vars(config.model))
     optim = torch.optim.AdamW(model.parameters(), lr=config.training.learning_rate)
-    logger.info("number of parameters:", sum(torch.numel(p) for p in model.parameters()))
+    print("> number of parameters:", sum(torch.numel(p) for p in model.parameters()))
 
     noise_scheduler = DDPMScheduler(
         config.model.max_timesteps,
@@ -51,7 +51,7 @@ def main(args, config: Config):
         accelerator.load_state(args.resume_dir)
 
     if accelerator.is_main_process:
-        logger.info("initialising weights and biases")
+        print("> initialising weights and biases")
         wandb = init_wandb(config)
         exp_dir = setup_directory()
     accelerator.wait_for_everyone()
@@ -93,7 +93,7 @@ def main(args, config: Config):
         pass
 
     for eid in range(config.training.epochs):
-        logger.info("epoch", eid)
+        print("> epoch", eid)
         train_loss = 0.0
         model.train()
         pb = tqdm(train_dataloader)
@@ -117,10 +117,15 @@ def main(args, config: Config):
                 valid_loss += loss.item()
                 pb.set_description(f"valid loss: {valid_loss / (i+1):.4f}")
 
-        wandb.log({"train": {"loss": train_loss}, "valid": {"loss": valid_loss}})
+        wandb.log(
+            {
+                "train": {"loss": train_loss / len(train_dataloader)},
+                "valid": {"loss": valid_loss / len(valid_dataloader)},
+            }
+        )
 
         if accelerator.is_local_main_process:
-            accelerator.save_state(exp_dir / "checkpoint-{eid:04}.pt")
+            accelerator.save_state(exp_dir / f"checkpoint-{eid:04}.pt")
         accelerator.wait_for_everyone()
 
 
