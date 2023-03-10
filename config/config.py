@@ -48,7 +48,7 @@ class DataConfig:
     hop_length: int = 300
     lifter_order: int = 24
     envelope_min: int = 0.1
-    micro_batch_size: int = 8  # TODO: move to training
+    micro_batch_size: int = 16
     num_workers: int = 4
 
 
