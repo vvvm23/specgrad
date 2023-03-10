@@ -22,6 +22,7 @@ class ModelConfig:
     diffusion_projection_dim: int = 512
     leaky_relu_slope: float = 0.4
     spec_upsample_strides: Tuple[int] = (10, 30)  # TODO: assert product equal to hop_length
+    n_mels: int = 128
 
 
 @dataclasses.dataclass
@@ -37,7 +38,7 @@ class DataConfig:
     hop_length: int = 300
     lifter_order: int = 24
     envelope_min: int = 0.1
-    batch_size: int = 16  # TODO: move to training
+    batch_size: int = 8  # TODO: move to training
     num_workers: int = 4
 
 

@@ -165,7 +165,7 @@ class SpecGrad(nn.Module):
         x = self.skip_projection(x)
         x = F.relu(x)
         x = self.output_projection(x)
-        return x
+        return x.squeeze(dim=1)
 
 
 if __name__ == "__main__":

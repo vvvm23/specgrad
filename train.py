@@ -1,9 +1,11 @@
+from accelerate.logging import get_logger
+
+logger = get_logger(__name__, log_level="info")
+
 import torch
 from accelerate import Accelerator
-from accelerate.logging import get_logger
 from tqdm import tqdm
 
-logger = get_logger(__file__)
 accelerator = Accelerator()
 
 from diffusers.schedulers import DDPMScheduler
@@ -38,7 +40,9 @@ def main(args, config: Config):
 
     # TODO: add checkpoint loading
 
-    model, optim, train_dataloader = accelerator.prepare(model, optim, train_dataloader)
+    model, optim, train_dataloader, valid_dataloader = accelerator.prepare(
+        model, optim, train_dataloader, valid_dataloader
+    )
 
     if accelerator.is_main_process:
         logger.info("initialising weights and biases")
@@ -59,7 +63,6 @@ def main(args, config: Config):
 
         timesteps = torch.randint(0, config.model.max_timesteps, (N,), dtype=torch.int64)
         noisy_waveform = noise_scheduler.add_noise(waveform, noise, timesteps)
-
         noise_pred = model(noisy_waveform, mel_spectrogram, timesteps)
 
         noise_diff = noise - noise_pred
@@ -76,14 +79,15 @@ def main(args, config: Config):
             .mean()
         )
 
+        # TODO: calculate log mel spectrogram mean absolute error (LS-MAE) to compare with PriorGrad
         return loss
 
     for eid in range(config.training.epochs):
         logger.info("epoch", eid)
         total_loss = 0.0
         model.train()
-        pb = tqdm(enumerate(train_dataloader))
-        for i, batch in pb:
+        pb = tqdm(train_dataloader)
+        for i, batch in enumerate(pb):
             optim.zero_grad()
             loss = loss_fn(model, batch)
             accelerator.backward(loss)
@@ -95,11 +99,14 @@ def main(args, config: Config):
         total_loss = 0.0
         model.eval()
         with torch.no_grad():
-            pb = tqdm(enumerate(valid_dataloader))
-            for i, batch in pb:
+            pb = tqdm(valid_dataloader)
+            for i, batch in enumerate(pb):
                 loss = loss_fn(model, batch)
+                loss = accelerator.gather_for_metrics(loss).mean()
                 total_loss += loss.item()
                 pb.set_description(f"valid loss: {total_loss / (i+1):.4f}")
+
+        # TODO: write checkpoints with optim states
 
 
 if __name__ == "__main__":

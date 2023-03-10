@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal, Union
 
+import torch
 from torch.utils.data import DataLoader, Dataset
 
 from config.config import DataConfig
@@ -50,7 +51,7 @@ class SpecGradDataset(Dataset):
             envelope_min=self.config.envelope_min,
         )
 
-        return waveform, mel_spectrogram, M
+        return torch.from_numpy(waveform), mel_spectrogram, M
 
 
 # they use a proprietry dataset so we can't exactly reproduce.
@@ -62,3 +63,20 @@ def get_dataset(config: DataConfig, split: Literal["train", "valid", "test"] = "
         dataset, batch_size=config.batch_size, shuffle=split == "train", num_workers=config.num_workers, pin_memory=True
     )
     return dataset, dataloader
+
+
+if __name__ == "__main__":
+    from config import DataConfig
+
+    from .preprocess import transform_noise
+
+    dataset, dataloader = get_dataset(DataConfig, split="train")
+
+    waveform, mel_spec, M = dataset.__getitem__(0)
+    print(waveform.shape)
+    print(mel_spec.shape)
+    print(M.shape)
+
+    noise = torch.randn_like(waveform.unsqueeze(0))
+    noise = transform_noise(M.unsqueeze(0), noise)
+    print(noise.shape)

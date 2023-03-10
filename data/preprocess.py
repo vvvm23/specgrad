@@ -1,3 +1,4 @@
+import os
 import random
 from pathlib import Path
 from typing import Optional, Union
@@ -20,14 +21,13 @@ def lifter(M, r):
 
 def get_random_offset(f: soundfile.SoundFile, sample_length: int, sr: int) -> int:
     file_sample_length = int(sample_length * f.samplerate / sr)
-    return random.randint(0, f.frames - file_sample_length - 1)
+    return random.randint(0, max(0, f.frames - file_sample_length - 1))
 
 
 def load_waveform(
     path: Union[str, Path], sr: int = 24_000, sample_length: int = -1, random_clip: bool = False
 ) -> NDArray[np.float32]:
-    path = str_to_path(path)
-    f = soundfile.SoundFile(path)
+    f = soundfile.SoundFile(path, mode="r")
 
     if random_clip:
         offset = get_random_offset(f, sample_length, sr)
@@ -35,15 +35,17 @@ def load_waveform(
         offset = 0
 
     # TODO: breaks here
-    raw = soundfile.read(f, start=offset, frames=max(-1, int(sample_length * f.samplerate / sr))).T
-    raw = librosa.to_mono(raw)
+    raw, _ = soundfile.read(path, start=offset, frames=max(-1, int(sample_length * f.samplerate / sr)), dtype="float32")
+    raw = librosa.to_mono(raw.T)
     raw = librosa.resample(raw, orig_sr=f.samplerate, target_sr=sr)
     raw = librosa.util.normalize(raw) * 0.95
+    raw = np.pad(raw, (0, sample_length - raw.shape[0]), constant_values=0)
     assert raw.shape[0] == sample_length, f"{raw.shape[0]}, {sample_length}"
 
     return raw
 
 
+# TODO: switch to manual calculating using torch for speed, also use for LS-MAE loss
 def calculate_mel(
     raw: NDArray[np.float32],
     sr: int = 24_000,
@@ -54,7 +56,15 @@ def calculate_mel(
     fmax: int = 12_000,
 ) -> torch.FloatTensor:
     mel = librosa.feature.melspectrogram(
-        y=raw, sr=sr, win_length=window_length, hop_length=hop_length, n_mels=n_mels, fmin=fmin, fmax=fmax, norm=2
+        y=raw,
+        sr=sr,
+        win_length=window_length,
+        hop_length=hop_length + 1,
+        n_mels=n_mels,
+        fmin=fmin,
+        fmax=fmax,
+        norm=2,
+        center=True,
     )
     return torch.from_numpy(mel)
 
@@ -80,6 +90,7 @@ def calculate_tf_filter(
 
 
 # TODO: can we torch jit compile
+# TODO: check this works after changes visually in a nb
 def transform_noise(
     filter_coefficients: torch.FloatTensor,
     noise: torch.FloatTensor,
@@ -91,16 +102,21 @@ def transform_noise(
     noise_spec = torch.stft(
         noise,
         n_fft=n_fft,
-        hop_length=hop_length,
+        hop_length=hop_length + 1,
         win_length=window_length,
         return_complex=True,
-        onesided=True,
         normalized=True,
+        center=True,
     )
 
     noise_spec *= filter_coefficients
     transformed_noise = torch.istft(
-        noise_spec, hop_length=hop_length, win_length=window_length, n_fft=n_fft, onesided=True
+        noise_spec,
+        hop_length=hop_length + 1,
+        win_length=window_length,
+        n_fft=n_fft,
+        center=True,
+        length=noise.shape[-1],
     )
     if post_norm:
         transformed_noise = (transformed_noise - transformed_noise.min()) / (
