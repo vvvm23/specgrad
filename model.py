@@ -166,26 +166,3 @@ class SpecGrad(nn.Module):
         x = F.relu(x)
         x = self.output_projection(x)
         return x.squeeze(dim=1)
-
-
-if __name__ == "__main__":
-    import librosa
-
-    wav, _ = librosa.load("test.wav", sr=24_000, mono=True)
-    offset, length = 10_000, 36_000
-    wav = wav[offset : offset + length]
-
-    # TODO: why does mel add +1?
-    mel = librosa.feature.melspectrogram(
-        y=wav, sr=24_000, hop_length=300, win_length=1200, fmin=20, fmax=12_000, power=2
-    )[:, :-1]
-
-    wav = torch.from_numpy(wav).unsqueeze(0)
-    mel = torch.from_numpy(mel).unsqueeze(0)
-    t = torch.FloatTensor([0.5])
-
-    model = SpecGrad(n_mels=128, dilation_cycle_length=10)
-    y = model(wav, mel, t)
-    print(wav)
-    print(y)
-    print(y.min(), y.max(), y.mean(), y.shape)

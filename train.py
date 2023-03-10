@@ -29,14 +29,17 @@ def main(args, config: Config):
     logger.info("train dataset length:", len(train_dataset))
     logger.info("valid dataset length:", len(valid_dataset))
 
-    # TODO: does model.compile work with accelerate
     logger.info("initialising model")
     model = SpecGrad(**vars(config.model))
     optim = torch.optim.AdamW(model.parameters(), lr=config.training.learning_rate)
     logger.info("number of parameters:", sum(torch.numel(p) for p in model.parameters()))
 
-    # TODO: config param this
-    noise_scheduler = DDPMScheduler(config.model.max_timesteps, beta_start=1e-4, beta_end=0.05, beta_schedule="linear")
+    noise_scheduler = DDPMScheduler(
+        config.model.max_timesteps,
+        beta_start=config.training.beta_start,
+        beta_end=config.training.beta_end,
+        beta_schedule=config.training.beta_schedule,
+    )
 
     # TODO: add checkpoint loading
 

@@ -54,9 +54,6 @@ class SpecGradDataset(Dataset):
         return torch.from_numpy(waveform), mel_spectrogram, M
 
 
-# they use a proprietry dataset so we can't exactly reproduce.
-# use LJSpeech to compare with PriorGrad, but need different sampling rate and other preprocess params
-# TODO: refactor to use LJSpeech
 def get_dataset(config: DataConfig, split: Literal["train", "valid", "test"] = "train"):
     dataset = SpecGradDataset(str_to_path(config.root_dir), f"{split}.txt", config)
     dataloader = DataLoader(

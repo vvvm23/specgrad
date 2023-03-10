@@ -34,7 +34,6 @@ def load_waveform(
     else:
         offset = 0
 
-    # TODO: breaks here
     raw, _ = soundfile.read(path, start=offset, frames=max(-1, int(sample_length * f.samplerate / sr)), dtype="float32")
     raw = librosa.to_mono(raw.T)
     raw = librosa.resample(raw, orig_sr=f.samplerate, target_sr=sr)

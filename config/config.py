@@ -8,6 +8,9 @@ from simple_parsing import ArgumentParser
 class TrainingConfig:
     epochs: int = 1
     learning_rate: float = 4e-4
+    beta_start: float = 1e-4
+    beta_end: float = 5e-2
+    beta_schedule: str = "linear"
 
 
 # TODO: some params can be derived from data directly
