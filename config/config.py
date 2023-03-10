@@ -5,12 +5,19 @@ from simple_parsing import ArgumentParser
 
 
 @dataclasses.dataclass
+class WandbConfig:
+    entity: str = "afmck"
+    project: str = "specgrad-dev"
+
+
+@dataclasses.dataclass
 class TrainingConfig:
     epochs: int = 1
     learning_rate: float = 4e-4
     beta_start: float = 1e-4
     beta_end: float = 5e-2
     beta_schedule: str = "linear"
+    batch_size: int = 512
 
 
 # TODO: some params can be derived from data directly
@@ -41,7 +48,7 @@ class DataConfig:
     hop_length: int = 300
     lifter_order: int = 24
     envelope_min: int = 0.1
-    batch_size: int = 8  # TODO: move to training
+    micro_batch_size: int = 8  # TODO: move to training
     num_workers: int = 4
 
 
@@ -50,4 +57,4 @@ class Config:
     training: TrainingConfig = TrainingConfig()
     model: ModelConfig = ModelConfig()
     data: DataConfig = DataConfig()
-    wandb = None
+    wandb: WandbConfig = WandbConfig()

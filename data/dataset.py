@@ -4,7 +4,7 @@ from typing import Literal, Union
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from config.config import DataConfig
+from config.config import Config, DataConfig
 from utils import str_to_path
 
 from .preprocess import (
@@ -54,10 +54,14 @@ class SpecGradDataset(Dataset):
         return torch.from_numpy(waveform), mel_spectrogram, M
 
 
-def get_dataset(config: DataConfig, split: Literal["train", "valid", "test"] = "train"):
-    dataset = SpecGradDataset(str_to_path(config.root_dir), f"{split}.txt", config)
+def get_dataset(config: Config, split: Literal["train", "valid", "test"] = "train"):
+    dataset = SpecGradDataset(str_to_path(config.data.root_dir), f"{split}.txt", config.data)
     dataloader = DataLoader(
-        dataset, batch_size=config.batch_size, shuffle=split == "train", num_workers=config.num_workers, pin_memory=True
+        dataset,
+        batch_size=config.data.micro_batch_size,
+        shuffle=split == "train",
+        num_workers=config.data.num_workers,
+        pin_memory=True,
     )
     return dataset, dataloader
 

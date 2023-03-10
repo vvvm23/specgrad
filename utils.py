@@ -1,8 +1,8 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Union
 
 import wandb
-
 from config import TrainingConfig
 
 
@@ -21,3 +21,14 @@ def init_wandb(config: TrainingConfig):
         project=config.wandb.project,
         resume="auto",
     )
+
+
+def setup_directory(base="exp"):
+    root_dir = Path(base)
+    root_dir.mkdir(exist_ok=True)
+
+    save_id = str(datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+
+    exp_dir = root_dir / save_id
+    exp_dir.mkdir(exist_ok=True)
+    return exp_dir

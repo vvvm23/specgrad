@@ -17,7 +17,7 @@
 - [X] Refactor model code copied from PriorGrad
 - [X] Dataset preprocessing to support extra precomputed components of SpecGrad (TF-filter per input)
 - [X] Configuration system
-- [ ] Basic training script
+- [X] Basic training script
 - [ ] Basic inference script (w/ HF schedulers)
 - [X] Data parallel training (w/ HF accelerate)
 - [ ] Optimisations
