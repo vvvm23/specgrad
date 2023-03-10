@@ -28,7 +28,7 @@ def main(args, config: Config):
     logger.info(config)
     logger.info(args)
 
-    logger.info("accelerator:", accelerator)
+    logger.info(f"accelerator: {accelerator}")
 
     logger.info("loading dataset")
     train_dataset, train_dataloader = get_dataset(config, split="train")
@@ -39,7 +39,7 @@ def main(args, config: Config):
     logger.info("initialising model")
     model = SpecGrad(**vars(config.model))
     optim = torch.optim.AdamW(model.parameters(), lr=config.training.learning_rate)
-    logger.info("number of parameters:", sum(torch.numel(p) for p in model.parameters()))
+    logger.info(f"number of parameters: {sum(torch.numel(p) for p in model.parameters())}")
 
     noise_scheduler = DDPMScheduler(
         config.model.max_timesteps,
@@ -104,7 +104,7 @@ def main(args, config: Config):
         pass
 
     for eid in range(config.training.epochs):
-        logger.info("epoch", eid)
+        logger.info(f"epoch {eid}")
         train_loss = 0.0
         model.train()
         pb = tqdm(train_dataloader)
