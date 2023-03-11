@@ -120,5 +120,5 @@ def transform_noise(
     if post_norm:
         transformed_noise = (transformed_noise - transformed_noise.min()) / (
             transformed_noise.max() - transformed_noise.min()
-        )
+        ) * 2.0 - 1.0
     return transformed_noise

@@ -47,7 +47,7 @@ class DataConfig:
     window_length: int = 1200
     hop_length: int = 300
     lifter_order: int = 24
-    envelope_min: int = 0.1
+    envelope_min: int = 0.01
     micro_batch_size: int = 16
     num_workers: int = 4
 
