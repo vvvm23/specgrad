@@ -15,6 +15,8 @@ from tqdm import tqdm
 
 from config import Config
 from data import get_dataset, transform_noise
+from data.preprocess import calculate_mel
+from inference import inference
 from model import SpecGrad
 from utils import init_wandb, setup_directory
 
@@ -33,8 +35,8 @@ def main(args, config: Config):
     logger.info("loading dataset")
     train_dataset, train_dataloader = get_dataset(config, split="train")
     valid_dataset, valid_dataloader = get_dataset(config, split="valid")
-    logger.info("train dataset length:", len(train_dataset))
-    logger.info("valid dataset length:", len(valid_dataset))
+    logger.info(f"train dataset length: {len(train_dataset)}")
+    logger.info(f"valid dataset length: {len(valid_dataset)}")
 
     logger.info("initialising model")
     model = SpecGrad(**vars(config.model))
@@ -98,10 +100,22 @@ def main(args, config: Config):
 
         return loss
 
-    # TODO: calculate log mel spectrogram mean absolute error (LS-MAE) to compare with PriorGrad
-    # but requires a full inference loop la
-    def ls_mae():
-        pass
+    # TODO: not sure this works as expected batched
+    # definitely need that custom torch mel_spec
+    # TODO: also needs to operate on log mel not mel
+    # TODO: fix mis match size crash
+    def ls_mae(model, mel_spec):
+        recon = inference(model, mel_spec, config, pinv_mel_basis=train_dataset.pinv_mel_basis, accelerator=accelerator)
+        recon_mel = calculate_mel(
+            recon,
+            sr=config.data.sampling_rate,
+            window_length=config.data.window_length,
+            hop_length=config.data.hop_length,
+            n_mels=config.data.n_mels,
+            fmin=config.data.fmin,
+            fmax=config.data.fmax,
+        )
+        return torch.nn.functional.l1_loss(recon_mel, mel_spec)
 
     for eid in range(config.training.epochs):
         logger.info(f"epoch {eid}")
@@ -125,6 +139,8 @@ def main(args, config: Config):
             for i, batch in enumerate(pb):
                 loss = loss_fn(model, batch)
                 loss = accelerator.gather_for_metrics(loss).mean()
+                # ls_mae_loss = ls_mae(model, batch[1]) # TODO: would be nice to have a namedtuple
+                # ls_mae_loss = accelerator.gather_for_metrics(ls_mae_loss).mean()
                 valid_loss += loss.item()
                 pb.set_description(f"valid loss: {valid_loss / (i+1):.4f}")
 

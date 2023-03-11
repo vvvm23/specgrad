@@ -33,16 +33,22 @@ def inference(
     config: Config,
     pinv_mel_basis: Optional[torch.FloatTensor] = None,
     accelerator: Optional[Accelerator] = None,
+    return_numpy: bool = True,
 ):
     waveform = torch.randn(mel_spectrogram.shape[0], config.data.sample_length)
-    if not pinv_mel_basis:
+    if pinv_mel_basis is None:
         pinv_mel_basis = get_pinv_mel_basis(
             config.data.sampling_rate, config.data.n_fft, config.data.n_mels, config.data.fmin, config.data.fmax
         )
 
+    waveform = waveform.to(accelerator.device)
+    mel_spectrogram = mel_spectrogram.to(accelerator.device)
+    pinv_mel_basis = pinv_mel_basis.to(accelerator.device)
+
     filter_coefficients = calculate_tf_filter(
         mel_spectrogram, pinv_mel_basis, lifter_order=config.data.lifter_order, envelope_min=config.data.envelope_min
     )
+    filter_coefficients = filter_coefficients.to(accelerator.device)
 
     waveform = transform_noise(
         filter_coefficients,
@@ -58,15 +64,14 @@ def inference(
         beta_end=config.training.beta_end,
         beta_schedule=config.training.beta_schedule,
     )
-    waveform = waveform.to(accelerator.device)
-    mel_spectrogram = mel_spectrogram.to(accelerator.device)
-    filter_coefficients = filter_coefficients.to(accelerator.device)
 
     for t in tqdm(scheduler.timesteps):
         noise_pred = model(waveform, mel_spectrogram, t)
         waveform = scheduler.step(noise_pred, t, waveform, filter_coefficients, config.data)
 
-    waveform = waveform.clamp(-1, 1).float().cpu().numpy()
+    waveform = waveform.clamp(-1, 1)
+    if return_numpy:
+        waveform = waveform.float().cpu().numpy()
     waveform = waveform[:, : config.data.sample_length]
     return waveform
 
