@@ -28,9 +28,13 @@ from scheduler import SpecGradDDPMScheduler
 
 @torch.no_grad()
 def inference(
-    model: SpecGrad, mel_spectrogram: torch.FloatTensor, config: Config, pinv_mel_basis: Optional[torch.FloatTensor]
+    model: SpecGrad,
+    mel_spectrogram: torch.FloatTensor,
+    config: Config,
+    pinv_mel_basis: Optional[torch.FloatTensor] = None,
+    accelerator: Optional[Accelerator] = None,
 ):
-    waveform = torch.randn(config.data.sample_length)
+    waveform = torch.randn(mel_spectrogram.shape[0], config.data.sample_length)
     if not pinv_mel_basis:
         pinv_mel_basis = get_pinv_mel_basis(
             config.data.sampling_rate, config.data.n_fft, config.data.n_mels, config.data.fmin, config.data.fmax
@@ -54,13 +58,16 @@ def inference(
         beta_end=config.training.beta_end,
         beta_schedule=config.training.beta_schedule,
     )
+    waveform = waveform.to(accelerator.device)
+    mel_spectrogram = mel_spectrogram.to(accelerator.device)
+    filter_coefficients = filter_coefficients.to(accelerator.device)
 
     for t in tqdm(scheduler.timesteps):
         noise_pred = model(waveform, mel_spectrogram, t)
         waveform = scheduler.step(noise_pred, t, waveform, filter_coefficients, config.data)
 
     waveform = waveform.clamp(-1, 1).float().cpu().numpy()
-    waveform = waveform[:, :, : config.data.sample_length]
+    waveform = waveform[:, : config.data.sample_length]
     return waveform
 
 
@@ -84,9 +91,9 @@ def main(args, config: Config):
         n_mels=config.data.n_mels,
         fmin=config.data.fmin,
         fmax=config.data.fmax,
-    )
+    ).unsqueeze(0)
 
-    recon = inference(model, mel_spec, config)
+    recon = inference(model, mel_spec, config, accelerator=accelerator).T
     soundfile.write("output.wav", recon, config.data.sample_length, subtype="PCM_16")
 
 

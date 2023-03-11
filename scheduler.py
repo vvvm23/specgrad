@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from diffusers.schedulers import DDPMScheduler, DDPMSchedulerOutput
+from diffusers.schedulers import DDPMScheduler
 from diffusers.utils import randn_tensor
 
 from config import DataConfig
@@ -21,7 +21,7 @@ class SpecGradDDPMScheduler(DDPMScheduler):
         data_config: DataConfig,
         generator=None,
         return_dict: bool = True,
-    ) -> Union[DDPMSchedulerOutput, Tuple]:
+    ) -> np.ndarray:
         """
         Predict the sample at the previous timestep by reversing the SDE. Core function to propagate the diffusion
         process from the learned model outputs (most often the predicted noise).
@@ -74,9 +74,6 @@ class SpecGradDDPMScheduler(DDPMScheduler):
                 -self.config.clip_sample_range, self.config.clip_sample_range
             )
 
-        if self.config.thresholding:
-            pred_original_sample = self._threshold_sample(pred_original_sample)
-
         # 4. Compute coefficients for pred_original_sample x_0 and current sample x_t
         # See formula (7) from https://arxiv.org/pdf/2006.11239.pdf
         pred_original_sample_coeff = (alpha_prod_t_prev ** (0.5) * current_beta_t) / beta_prod_t
@@ -109,8 +106,4 @@ class SpecGradDDPMScheduler(DDPMScheduler):
                 variance = (self._get_variance(t, predicted_variance=predicted_variance) ** 0.5) * variance_noise
 
         pred_prev_sample = pred_prev_sample + variance
-
-        if not return_dict:
-            return (pred_prev_sample,)
-
-        return DDPMSchedulerOutput(prev_sample=pred_prev_sample, pred_original_sample=pred_original_sample)
+        return pred_prev_sample
