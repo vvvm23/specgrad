@@ -58,6 +58,8 @@ def inference(
         hop_length=config.data.hop_length,
     )
 
+    # TODO: check this scheduler is correct
+    # in general, this inference script is a bit haphazard
     scheduler = SpecGradDDPMScheduler(
         config.model.max_timesteps,
         beta_start=config.training.beta_start,
@@ -99,12 +101,13 @@ def main(args, config: Config):
     ).unsqueeze(0)
 
     recon = inference(model, mel_spec, config, accelerator=accelerator).T
-    soundfile.write("output.wav", recon, config.data.sample_length, subtype="PCM_16")
+    soundfile.write(args.output_file, recon, config.data.sample_length, subtype="PCM_16")
 
 
 if __name__ == "__main__":
     parser = simple_parsing.ArgumentParser()
     parser.add_argument("input_file", type=str)
+    parser.add_argument("output_file", type=str)
     parser.add_argument("--config-path", type=str, default=None)
     parser.add_argument("--resume-dir", type=str, default=None)
     args = parser.parse_args()

@@ -62,6 +62,8 @@ def main(args, config: Config):
         # TODO: fails as we don't store epoch, how to log too?
         # also, exp dir != checkpoint dir
         # exp_dir = Path(args.resume_dir) if args.resume_dir else setup_directory()
+
+        # for now, create new directory
         exp_dir = setup_directory()
 
     if accelerator.is_main_process:
@@ -73,7 +75,7 @@ def main(args, config: Config):
         waveform, mel_spectrogram, filter_coefficients = batch
         N = waveform.shape[0]
         noise = torch.randn_like(waveform)
-        noise = transform_noise(  # costs 2 STFTs
+        noise = transform_noise(
             filter_coefficients,
             noise,
             n_fft=config.data.n_fft,
@@ -87,7 +89,7 @@ def main(args, config: Config):
 
         noise_diff = noise - noise_pred
         loss = (
-            transform_noise(  # costs 2 STFTs
+            transform_noise(
                 1 / filter_coefficients,
                 noise_diff,
                 n_fft=config.data.n_fft,

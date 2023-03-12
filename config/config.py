@@ -12,7 +12,7 @@ class WandbConfig:
 
 @dataclasses.dataclass
 class TrainingConfig:
-    epochs: int = 10
+    epochs: int = 100
     learning_rate: float = 4e-4
     beta_start: float = 1e-4
     beta_end: float = 5e-2
