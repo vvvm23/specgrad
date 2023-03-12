@@ -13,7 +13,7 @@ from utils import str_to_path
 
 
 def lifter(M, r):
-    LI = torch.sin(torch.pi * torch.arange(1, 1 + M.shape[0], dtype=M.dtype) / r)
+    LI = torch.sin(torch.pi * torch.arange(1, 1 + M.shape[0], dtype=M.dtype, device=M.device) / r)
     LI = LI.reshape(LI.shape[0], 1)
 
     return M * (1 + (r / 2) * LI)
